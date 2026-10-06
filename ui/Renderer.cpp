@@ -70,10 +70,14 @@ void Renderer::wall(QPainter &p, int x, int y, const QColor &c, int tick, const 
     }
 }
 
-void Renderer::ghostSprite(QPainter &p, const Ghost &g, qreal alpha, int power, int tick) {
+void Renderer::ghostSprite(QPainter &p, const Ghost &g, qreal alpha, int power, int tick, double opacity) {
+    if (opacity <= 0.0) return;
     bool sc = power > 0 && g.isScared();
     QColor c = sc ? ((power < 12 && (tick / 2) % 2) ? QColor(Qt::white) : QColor(33, 33, 255))
                   : g.color();
+    if (opacity < 1.0) {
+        c.setAlphaF(c.alphaF() * opacity);
+    }
     QPoint o = posOf(g.x(), g.y(), g.px(), g.py(), alpha);
 
     for (int r = 0; r < 8; ++r) {
@@ -84,7 +88,7 @@ void Renderer::ghostSprite(QPainter &p, const Ghost &g, qreal alpha, int power, 
     }
 
     if (sc) {
-        QColor f(255, 200, 200);
+        QColor f(255, 200, 200, int(255 * opacity));
         px(p, o.x() + 2, o.y() + 3, f);
         px(p, o.x() + 5, o.y() + 3, f);
         for (int x : {1, 3, 4, 6}) px(p, o.x() + x, o.y() + 5, f);
@@ -93,8 +97,8 @@ void Renderer::ghostSprite(QPainter &p, const Ghost &g, qreal alpha, int power, 
         for (int e = 0; e < 2; ++e) {
             int ex = o.x() + (e ? 5 : 1);
             int ey = o.y() + 2;
-            p.fillRect(ex, ey, 2, 3, Qt::white);
-            px(p, ex + (g.dx() > 0 ? 1 : 0), ey + (g.dy() > 0 ? 2 : g.dy() < 0 ? 0 : 1), QColor(20, 20, 200));
+            p.fillRect(ex, ey, 2, 3, QColor(255, 255, 255, int(255 * opacity)));
+            px(p, ex + (g.dx() > 0 ? 1 : 0), ey + (g.dy() > 0 ? 2 : g.dy() < 0 ? 0 : 1), QColor(20, 20, 200, int(255 * opacity)));
         }
     }
 }
@@ -108,9 +112,11 @@ void Renderer::render(QImage &frame, const GameEngine &engine, qreal alpha) {
     int level = engine.level();
     const Board &board = engine.board();
 
-    QColor wc = (state == GameState::Clear && (tick / 2) % 2)
-                    ? QColor(Qt::white)
-                    : Constants::WALLS[(level - 1) % 4];
+    QColor wc = Constants::WALLS[(level - 1) % 4];
+    if (state == GameState::Clear) {
+        int cycle = (engine.clearTicks() / 3) % 2;
+        wc = cycle ? QColor(255, 220, 100) : QColor(Qt::white);
+    }
 
     // HUD
     text(p, 2, 2, QString("SCORE %1").arg(engine.score()), Qt::white);
@@ -150,9 +156,20 @@ void Renderer::render(QImage &frame, const GameEngine &engine, qreal alpha) {
     const Pacman &pac = engine.pacman();
     QPoint pp = posOf(pac.x(), pac.y(), pac.px(), pac.py(), alpha);
     if (state == GameState::Dying) {
-        int rows = qMax(0, 8 - (10 - engine.dyingTicks()));
-        if (rows > 0) {
-            p.drawImage(pp.x(), pp.y(), m_pacImg[2][1], 0, 0, 8, rows);
+        int dyingTicks = engine.dyingTicks();
+        if (dyingTicks > 30) {
+            // Phase 1: Shock pause
+            p.drawImage(pp, m_pacImg[0][1]);
+        } else if (dyingTicks > 10) {
+            // Phase 2: Slow dissolve & rotation (ticks 30 -> 10 over 2 seconds)
+            int progress = 30 - dyingTicks; // 0..20
+            int visibleRows = qMax(0, 8 - (progress * 8 / 20));
+            int rotDir = (progress * 90 / 5) % 360;
+            QImage base = m_pacImg[2][1];
+            QImage rot = base.transformed(QTransform().rotate(rotDir), Qt::FastTransformation);
+            if (visibleRows > 0) {
+                p.drawImage(pp.x(), pp.y(), rot, 0, 0, 8, visibleRows);
+            }
         }
     } else {
         int d = pac.dx() > 0 ? 0 : pac.dx() < 0 ? 1 : pac.dy() < 0 ? 2 : pac.dy() > 0 ? 3 : 0;
@@ -160,9 +177,14 @@ void Renderer::render(QImage &frame, const GameEngine &engine, qreal alpha) {
     }
 
     // Ghosts
-    if (state != GameState::Dying) {
+    if (state == GameState::Dying) {
+        double ghostOpacity = qBound(0.0, (engine.dyingTicks() - 25) / 10.0, 1.0);
         for (const Ghost &g : engine.ghosts()) {
-            ghostSprite(p, g, alpha, engine.power(), tick);
+            ghostSprite(p, g, alpha, engine.power(), tick, ghostOpacity);
+        }
+    } else {
+        for (const Ghost &g : engine.ghosts()) {
+            ghostSprite(p, g, alpha, engine.power(), tick, 1.0);
         }
     }
 
@@ -173,20 +195,41 @@ void Renderer::render(QImage &frame, const GameEngine &engine, qreal alpha) {
         text(p, x, po.y * Constants::TS + Constants::HUDH + 1 - (12 - po.ttl) / 3, po.s, QColor(0, 255, 255));
     }
 
-    // Messages
-    QString msg;
-    if (state == GameState::Ready) msg = "READY!";
-    else if (state == GameState::Paused) msg = "PAUSED";
-    else if (state == GameState::Over) msg = "GAME OVER";
+    // Messages & Slow Fade Transitions
+    if (state == GameState::Ready) {
+        int w = 24, x = (Constants::IMG_W - w) / 2, y = 10 * Constants::TS + Constants::HUDH + 1;
+        p.fillRect(x - 2, y - 2, w + 3, 9, Qt::black);
+        QColor rc = ((tick / 2) % 2 == 0) ? QColor(255, 255, 0) : QColor(255, 200, 0);
+        text(p, x, y, "READY!", rc);
 
-    if (!msg.isEmpty()) {
-        int w = msg.size() * 4;
-        int x = (Constants::IMG_W - w) / 2;
-        int y = 10 * Constants::TS + Constants::HUDH + 1;
-        p.fillRect(x - 2, y - 2, w + 3, state == GameState::Over ? 19 : 9, Qt::black);
-        text(p, x, y, msg, state == GameState::Ready ? QColor(255, 255, 0) : QColor(Qt::white));
-        if (state == GameState::Over) {
-            text(p, (Constants::IMG_W - 28) / 2, y + 9, "PRESS R", QColor(150, 150, 150));
+        if (engine.readyTicks() > 24) {
+            double fade = (engine.readyTicks() - 24) / 12.0;
+            p.fillRect(frame.rect(), QColor(0, 0, 0, int(fade * 255)));
         }
+    } else if (state == GameState::Paused) {
+        int w = 24, x = (Constants::IMG_W - w) / 2, y = 10 * Constants::TS + Constants::HUDH + 1;
+        p.fillRect(x - 2, y - 2, w + 3, 9, Qt::black);
+        text(p, x, y, "PAUSED", Qt::white);
+    } else if (state == GameState::Clear) {
+        int w = 44, x = (Constants::IMG_W - w) / 2, y = 10 * Constants::TS + Constants::HUDH + 1;
+        p.fillRect(x - 2, y - 2, w + 3, 9, Qt::black);
+        text(p, x, y, "CLEAR!", QColor(0, 255, 200));
+
+        if (engine.clearTicks() < 15) {
+            double fade = (15 - engine.clearTicks()) / 15.0;
+            p.fillRect(frame.rect(), QColor(0, 0, 0, int(fade * 255)));
+        }
+    } else if (state == GameState::Over) {
+        double overProgress = qMin(1.0, (30 - engine.overTicks()) / 20.0);
+        int darkAlpha = int(overProgress * 180);
+        p.fillRect(frame.rect(), QColor(0, 0, 0, darkAlpha));
+
+        int w = 36, x = (Constants::IMG_W - w) / 2, y = 10 * Constants::TS + Constants::HUDH + 1;
+        p.fillRect(x - 2, y - 2, w + 3, 19, Qt::black);
+        text(p, x, y, "GAME OVER", QColor(255, 60, 60));
+        text(p, (Constants::IMG_W - 28) / 2, y + 9, "PRESS R", QColor(180, 180, 180));
+    } else if (state == GameState::Dying && engine.dyingTicks() <= 10) {
+        double fade = (10 - engine.dyingTicks()) / 10.0;
+        p.fillRect(frame.rect(), QColor(0, 0, 0, int(fade * 255)));
     }
 }

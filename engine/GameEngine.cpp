@@ -6,6 +6,15 @@
 GameEngine::GameEngine() {
     m_hi = QSettings("PixelPacman", "Pacman").value("hi", 0).toInt();
 
+    m_waka1 = SoundManager::makeSweep(400, 700, 0.05, 0.35);
+    m_waka2 = SoundManager::makeSweep(700, 400, 0.05, 0.35);
+    m_powerPelletSound = SoundManager::makeSweep(250, 950, 0.18, 0.45);
+    m_eatGhostSound = SoundManager::makeSweep(300, 1400, 0.3, 0.5);
+    m_eatFruitSound = SoundManager::makeWav({523, 659, 784}, {0.08, 0.08, 0.12}, 0.5);
+    m_deathSound = SoundManager::makeSweep(900, 80, 1.6, 0.55);
+    m_levelClearSound = SoundManager::makeWav({440, 554, 659, 880, 659, 880}, {0.12, 0.12, 0.12, 0.18, 0.12, 0.35}, 0.45);
+    m_readySound = SoundManager::makeWav({261, 329, 392, 523}, {0.12, 0.12, 0.12, 0.3}, 0.45);
+
     m_ghosts.resize(4);
     m_ghosts[0].setColor(QColor(255, 0, 0));     // Blinky
     m_ghosts[1].setColor(QColor(255, 184, 255)); // Pinky
@@ -61,7 +70,8 @@ void GameEngine::resetPositions() {
     }
 
     m_state = GameState::Ready;
-    m_readyTicks = 12;
+    m_readyTicks = 36; // Slow ready transition (3.6s)
+    m_readySound.play();
 }
 
 void GameEngine::addPopup(int x, int y, const QString &s) {
@@ -71,7 +81,8 @@ void GameEngine::addPopup(int x, int y, const QString &s) {
 void GameEngine::die() {
     --m_lives;
     m_state = GameState::Dying;
-    m_dyingTicks = 10;
+    m_dyingTicks = 40; // Slow multi-stage death transition (4.0s)
+    m_deathSound.play();
 }
 
 void GameEngine::handleKey(int key) {
@@ -97,10 +108,13 @@ void GameEngine::movePac() {
     if (c == '.' || c == 'o') {
         if (c == '.') {
             m_score += 10;
+            if (m_wakaToggle) m_waka1.play(); else m_waka2.play();
+            m_wakaToggle = !m_wakaToggle;
         } else {
             m_score += 50;
             m_power = powerTime();
             m_combo = 0;
+            m_powerPelletSound.play();
             for (Ghost &g : m_ghosts) {
                 g.setScared(true);
                 g.reverseDirection();
@@ -119,6 +133,7 @@ void GameEngine::movePac() {
         m_score += v;
         m_fruitTTL = 0;
         addPopup(9, 13, QString::number(v));
+        m_eatFruitSound.play();
     }
 }
 
@@ -134,6 +149,7 @@ void GameEngine::checkCollisions() {
             ++m_combo;
             m_score += val;
             addPopup(g.x(), g.y(), QString::number(val));
+            m_eatGhostSound.play();
             g.sendToHouse();
         } else {
             die();
@@ -158,6 +174,7 @@ void GameEngine::step() {
         if (--m_dyingTicks <= 0) {
             if (m_lives <= 0) {
                 m_state = GameState::Over;
+                m_overTicks = 30;
                 saveHi();
             } else {
                 resetPositions();
@@ -167,6 +184,10 @@ void GameEngine::step() {
     }
     if (m_state == GameState::Clear) {
         if (--m_clearTicks <= 0) nextLevel();
+        return;
+    }
+    if (m_state == GameState::Over) {
+        if (m_overTicks > 0) --m_overTicks;
         return;
     }
     if (m_state != GameState::Playing) return;
@@ -185,7 +206,8 @@ void GameEngine::step() {
     if (m_power > 0) --m_power;
     if (m_board.dotsRemaining() <= 0) {
         m_state = GameState::Clear;
-        m_clearTicks = 16;
+        m_clearTicks = 50; // Slow level clear transition (5.0s)
+        m_levelClearSound.play();
         saveHi();
     }
 }

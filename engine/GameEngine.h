@@ -7,6 +7,8 @@
 #include "entities/Pacman.h"
 #include "entities/Ghost.h"
 
+#include "core/SoundManager.h"
+
 class GameEngine {
 public:
     GameEngine();
@@ -30,7 +32,10 @@ public:
     int power() const { return m_power; }
     int tick() const { return m_tick; }
     int fruitTTL() const { return m_fruitTTL; }
+    int readyTicks() const { return m_readyTicks; }
     int dyingTicks() const { return m_dyingTicks; }
+    int clearTicks() const { return m_clearTicks; }
+    int overTicks() const { return m_overTicks; }
 
     const Board &board() const { return m_board; }
     const Pacman &pacman() const { return m_pacman; }
@@ -58,6 +63,16 @@ private:
     int m_readyTicks = 0;
     int m_dyingTicks = 0;
     int m_clearTicks = 0;
+    int m_overTicks = 0;
     int m_combo = 0;
     int m_fruitTTL = 0;
+    bool m_wakaToggle = false;
+
+    WavSound m_waka1, m_waka2;
+    WavSound m_powerPelletSound;
+    WavSound m_eatGhostSound;
+    WavSound m_eatFruitSound;
+    WavSound m_deathSound;
+    WavSound m_levelClearSound;
+    WavSound m_readySound;
 };

@@ -9,6 +9,7 @@ HEADERS += \
     core/Constants.h \
     core/Types.h \
     core/Assets.h \
+    core/SoundManager.h \
     entities/Pacman.h \
     entities/Ghost.h \
     engine/Board.h \
