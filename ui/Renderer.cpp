@@ -70,9 +70,9 @@ void Renderer::wall(QPainter &p, int x, int y, const QColor &c, int tick, const 
     }
 }
 
-void Renderer::ghostSprite(QPainter &p, const Ghost &g, qreal alpha, int power, int tick, double opacity) {
+void Renderer::ghostSprite(QPainter &p, const Ghost &g, qreal ghostAlpha, int power, int tick, double opacity) {
     if (opacity <= 0.0) return;
-    QPoint o = posOf(g.x(), g.y(), g.px(), g.py(), alpha);
+    QPoint o = posOf(g.x(), g.y(), g.px(), g.py(), ghostAlpha);
 
     if (g.isEaten()) {
         // Floating eyes animation returning to the cage
@@ -119,7 +119,7 @@ void Renderer::ghostSprite(QPainter &p, const Ghost &g, qreal alpha, int power, 
     }
 }
 
-void Renderer::render(QImage &frame, const GameEngine &engine, qreal alpha) {
+void Renderer::render(QImage &frame, const GameEngine &engine, qreal alpha, qreal ghostAlpha) {
     QPainter p(&frame);
     p.fillRect(frame.rect(), Qt::black);
 
@@ -196,11 +196,11 @@ void Renderer::render(QImage &frame, const GameEngine &engine, qreal alpha) {
     if (state == GameState::Dying) {
         double ghostOpacity = qBound(0.0, (engine.dyingTicks() - 25) / 10.0, 1.0);
         for (const Ghost &g : engine.ghosts()) {
-            ghostSprite(p, g, alpha, engine.power(), tick, ghostOpacity);
+            ghostSprite(p, g, ghostAlpha, engine.power(), tick, ghostOpacity);
         }
     } else {
         for (const Ghost &g : engine.ghosts()) {
-            ghostSprite(p, g, alpha, engine.power(), tick, 1.0);
+            ghostSprite(p, g, ghostAlpha, engine.power(), tick, 1.0);
         }
     }
 

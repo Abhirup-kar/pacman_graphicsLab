@@ -41,7 +41,7 @@ void Ghost::startEaten() {
     m_release = 0;
 }
 
-void Ghost::move(const Board &board, const Pacman &pac, int index, int tick, bool powerActive) {
+void Ghost::move(const Board &board, const Pacman &pac, int index, int /*tick*/, bool powerActive) {
     m_px = m_x;
     m_py = m_y;
 
@@ -82,9 +82,6 @@ void Ghost::move(const Board &board, const Pacman &pac, int index, int tick, boo
     }
 
     bool frightened = powerActive && m_scared;
-    if (frightened && (tick & 1)) {
-        return;
-    }
 
     // Ghost house exit path logic
     if ((m_y == 9 && m_x >= 8 && m_x <= 10) || (m_x == 9 && m_y == 8)) {

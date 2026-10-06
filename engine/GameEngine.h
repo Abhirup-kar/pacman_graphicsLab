@@ -17,10 +17,22 @@ public:
     void nextLevel();
     void resetPositions();
     void step();
+    void stepPac();
+    void stepGhosts();
     void handleKey(int key);
     void saveHi();
 
     int interval() const;
+    int ghostInterval() const {
+        double s = ghostSpeed();
+        if (s <= 0.01) s = 0.01;
+        return qRound(interval() / s);
+    }
+    double ghostSpeed() const {
+        double s = qMin(1.0, 0.70 + (m_level - 1) * 0.05);
+        if (m_power > 0) s *= 0.55;
+        return s;
+    }
     int powerTime() const;
 
     // State queries
@@ -34,7 +46,6 @@ public:
     int fruitTTL() const { return m_fruitTTL; }
     int fruitX() const { return m_fruitX; }
     int fruitY() const { return m_fruitY; }
-    double ghostSpeed() const { return qMin(1.0, 0.70 + (m_level - 1) * 0.05); }
     int readyTicks() const { return m_readyTicks; }
     int dyingTicks() const { return m_dyingTicks; }
     int clearTicks() const { return m_clearTicks; }
@@ -72,7 +83,6 @@ private:
     int m_fruitTTL = 0;
     int m_fruitX = 9;
     int m_fruitY = 13;
-    double m_ghostSpeedAcc = 0.0;
     bool m_wakaToggle = false;
 
     WavSound m_waka1, m_waka2;

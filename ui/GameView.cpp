@@ -16,7 +16,7 @@ GameView::GameView(QWidget *parent)
 
     m_tickTimer = new QTimer(this);
     connect(m_tickTimer, &QTimer::timeout, this, [this] {
-        m_engine.step();
+        m_engine.stepPac();
         m_sinceTick.restart();
         if (m_tickTimer->interval() != m_engine.interval()) {
             m_tickTimer->setInterval(m_engine.interval());
@@ -25,8 +25,22 @@ GameView::GameView(QWidget *parent)
     m_tickTimer->start(m_engine.interval());
     m_sinceTick.start();
 
+    m_ghostTimer = new QTimer(this);
+    connect(m_ghostTimer, &QTimer::timeout, this, [this] {
+        m_engine.stepGhosts();
+        m_sinceGhostTick.restart();
+        if (m_ghostTimer->interval() != m_engine.ghostInterval()) {
+            m_ghostTimer->setInterval(m_engine.ghostInterval());
+        }
+    });
+    m_ghostTimer->start(m_engine.ghostInterval());
+    m_sinceGhostTick.start();
+
     m_renderTimer = new QTimer(this);
     connect(m_renderTimer, &QTimer::timeout, this, [this] {
+        if (m_ghostTimer->interval() != m_engine.ghostInterval()) {
+            m_ghostTimer->setInterval(m_engine.ghostInterval());
+        }
         update();
     });
     m_renderTimer->start(16);
@@ -39,6 +53,13 @@ qreal GameView::alpha() const {
     return qMin(1.0, m_sinceTick.elapsed() / double(m_tickTimer->interval()));
 }
 
+qreal GameView::ghostAlpha() const {
+    if (m_engine.state() != GameState::Playing || !m_ghostTimer) {
+        return 1.0;
+    }
+    return qMin(1.0, m_sinceGhostTick.elapsed() / double(m_ghostTimer->interval()));
+}
+
 void GameView::keyPressEvent(QKeyEvent *e) {
     m_engine.handleKey(e->key());
 }
@@ -49,7 +70,7 @@ void GameView::closeEvent(QCloseEvent *e) {
 }
 
 void GameView::paintEvent(QPaintEvent *) {
-    m_renderer.render(m_frame, m_engine, alpha());
+    m_renderer.render(m_frame, m_engine, alpha(), ghostAlpha());
 
     QPainter p(this);
     p.fillRect(rect(), Qt::black); // Letterboxing / pillarboxing background

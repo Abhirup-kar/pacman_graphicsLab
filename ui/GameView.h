@@ -19,11 +19,14 @@ protected:
 
 private:
     qreal alpha() const;
+    qreal ghostAlpha() const;
 
     GameEngine m_engine;
     Renderer m_renderer;
     QImage m_frame;
     QTimer *m_tickTimer = nullptr;
+    QTimer *m_ghostTimer = nullptr;
     QTimer *m_renderTimer = nullptr;
     QElapsedTimer m_sinceTick;
+    QElapsedTimer m_sinceGhostTick;
 };

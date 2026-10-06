@@ -73,7 +73,6 @@ void GameEngine::resetPositions() {
 
     m_state = GameState::Ready;
     m_readyTicks = 36; // Slow ready transition (3.6s)
-    m_ghostSpeedAcc = 0.0;
     m_readySound.play();
 }
 
@@ -187,7 +186,7 @@ void GameEngine::checkCollisions() {
     }
 }
 
-void GameEngine::step() {
+void GameEngine::stepPac() {
     ++m_tick;
     for (int i = m_popups.size() - 1; i >= 0; --i) {
         if (--m_popups[i].ttl <= 0) {
@@ -226,27 +225,6 @@ void GameEngine::step() {
     checkCollisions();
     if (m_state != GameState::Playing) return;
 
-    // Ghosts speed: 70% of Pacman initially, +5% each level
-    double baseSpeed = qMin(1.0, 0.70 + (m_level - 1) * 0.05);
-    if (m_power > 0) baseSpeed *= 0.55; // Frightened ghosts move even slower
-    m_ghostSpeedAcc += baseSpeed;
-    bool moveLivingGhosts = false;
-    if (m_ghostSpeedAcc >= 1.0) {
-        m_ghostSpeedAcc -= 1.0;
-        moveLivingGhosts = true;
-    }
-
-    for (int i = 0; i < m_ghosts.size(); ++i) {
-        if (m_ghosts[i].isEaten()) {
-            // Eaten eyes returning to cage always move so animation is smooth
-            m_ghosts[i].move(m_board, m_pacman, i, m_tick, m_power > 0);
-        } else if (moveLivingGhosts) {
-            m_ghosts[i].move(m_board, m_pacman, i, m_tick, m_power > 0);
-        }
-    }
-    checkCollisions();
-    if (m_state != GameState::Playing) return;
-
     if (m_power > 0) --m_power;
     if (m_board.dotsRemaining() <= 0) {
         m_state = GameState::Clear;
@@ -254,4 +232,18 @@ void GameEngine::step() {
         m_levelClearSound.play();
         saveHi();
     }
+}
+
+void GameEngine::stepGhosts() {
+    if (m_state != GameState::Playing) return;
+
+    for (int i = 0; i < m_ghosts.size(); ++i) {
+        m_ghosts[i].move(m_board, m_pacman, i, m_tick, m_power > 0);
+    }
+    checkCollisions();
+}
+
+void GameEngine::step() {
+    stepPac();
+    stepGhosts();
 }
