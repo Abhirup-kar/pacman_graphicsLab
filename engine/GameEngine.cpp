@@ -1,5 +1,7 @@
 #include "engine/GameEngine.h"
 #include <QSettings>
+#include <QRandomGenerator>
+#include <QPoint>
 #include <QtGlobal>
 #include <Qt>
 
@@ -71,6 +73,7 @@ void GameEngine::resetPositions() {
 
     m_state = GameState::Ready;
     m_readyTicks = 36; // Slow ready transition (3.6s)
+    m_ghostSpeedAcc = 0.0;
     m_readySound.play();
 }
 
@@ -101,6 +104,30 @@ void GameEngine::handleKey(int key) {
     }
 }
 
+void GameEngine::spawnFruit() {
+    QVector<QPoint> validSpots;
+    for (int y = 1; y < Constants::ROWS - 1; ++y) {
+        for (int x = 1; x < Constants::COLS - 1; ++x) {
+            if (m_board.isWall(x, y, false)) continue;
+            // Exclude ghost house and ghost door
+            if (y >= 8 && y <= 10 && x >= 7 && x <= 11) continue;
+            // Exclude tiles too close to Pac-man
+            int dist = qAbs(x - m_pacman.x()) + qAbs(y - m_pacman.y());
+            if (dist < 4) continue;
+            validSpots.push_back(QPoint(x, y));
+        }
+    }
+    if (!validSpots.isEmpty()) {
+        int idx = QRandomGenerator::global()->bounded(validSpots.size());
+        m_fruitX = validSpots[idx].x();
+        m_fruitY = validSpots[idx].y();
+    } else {
+        m_fruitX = 9;
+        m_fruitY = 13;
+    }
+    m_fruitTTL = 70;
+}
+
 void GameEngine::movePac() {
     m_pacman.move(m_board);
 
@@ -124,21 +151,23 @@ void GameEngine::movePac() {
 
         int eaten = m_board.totalDots() - m_board.dotsRemaining();
         if ((eaten == 40 || eaten == 100) && m_fruitTTL == 0) {
-            m_fruitTTL = 70;
+            spawnFruit();
         }
     }
 
-    if (m_fruitTTL > 0 && m_pacman.x() == 9 && m_pacman.y() == 13) {
+    if (m_fruitTTL > 0 && m_pacman.x() == m_fruitX && m_pacman.y() == m_fruitY) {
         int v = 100 * qMin(m_level, 5);
         m_score += v;
         m_fruitTTL = 0;
-        addPopup(9, 13, QString::number(v));
+        addPopup(m_fruitX, m_fruitY, QString::number(v));
         m_eatFruitSound.play();
     }
 }
 
 void GameEngine::checkCollisions() {
     for (Ghost &g : m_ghosts) {
+        if (g.isEaten()) continue; // Returning eyes cannot hurt Pac-Man and cannot be eaten
+
         bool hit = (g.x() == m_pacman.x() && g.y() == m_pacman.y()) ||
                    (g.x() == m_pacman.px() && g.y() == m_pacman.py() &&
                     g.px() == m_pacman.x() && g.py() == m_pacman.y());
@@ -150,7 +179,7 @@ void GameEngine::checkCollisions() {
             m_score += val;
             addPopup(g.x(), g.y(), QString::number(val));
             m_eatGhostSound.play();
-            g.sendToHouse();
+            g.startEaten();
         } else {
             die();
             return;
@@ -197,8 +226,23 @@ void GameEngine::step() {
     checkCollisions();
     if (m_state != GameState::Playing) return;
 
+    // Ghosts speed: 70% of Pacman initially, +5% each level
+    double baseSpeed = qMin(1.0, 0.70 + (m_level - 1) * 0.05);
+    if (m_power > 0) baseSpeed *= 0.55; // Frightened ghosts move even slower
+    m_ghostSpeedAcc += baseSpeed;
+    bool moveLivingGhosts = false;
+    if (m_ghostSpeedAcc >= 1.0) {
+        m_ghostSpeedAcc -= 1.0;
+        moveLivingGhosts = true;
+    }
+
     for (int i = 0; i < m_ghosts.size(); ++i) {
-        m_ghosts[i].move(m_board, m_pacman, i, m_tick, m_power > 0);
+        if (m_ghosts[i].isEaten()) {
+            // Eaten eyes returning to cage always move so animation is smooth
+            m_ghosts[i].move(m_board, m_pacman, i, m_tick, m_power > 0);
+        } else if (moveLivingGhosts) {
+            m_ghosts[i].move(m_board, m_pacman, i, m_tick, m_power > 0);
+        }
     }
     checkCollisions();
     if (m_state != GameState::Playing) return;

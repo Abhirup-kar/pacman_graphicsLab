@@ -3,6 +3,8 @@ CONFIG += c++17
 TARGET = Pacman
 TEMPLATE = app
 
+win32: LIBS += -lwinmm
+
 INCLUDEPATH += $$PWD
 
 HEADERS += \

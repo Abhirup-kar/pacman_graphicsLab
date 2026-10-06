@@ -17,6 +17,7 @@ void Ghost::reset(int startX, int startY, int initDx, int initRelease) {
     m_dy = 0;
     m_release = initRelease;
     m_scared = false;
+    m_eaten = false;
 }
 
 void Ghost::reverseDirection() {
@@ -26,6 +27,7 @@ void Ghost::reverseDirection() {
 
 void Ghost::sendToHouse() {
     m_scared = false;
+    m_eaten = false;
     m_x = m_px = 9;
     m_y = m_py = 9;
     m_dx = 0;
@@ -33,9 +35,46 @@ void Ghost::sendToHouse() {
     m_release = 15;
 }
 
+void Ghost::startEaten() {
+    m_scared = false;
+    m_eaten = true;
+    m_release = 0;
+}
+
 void Ghost::move(const Board &board, const Pacman &pac, int index, int tick, bool powerActive) {
     m_px = m_x;
     m_py = m_y;
+
+    if (m_eaten) {
+        // Eaten animation: Eyes float toward ghost house cage at (9, 9)
+        if (m_x == 9 && m_y == 9) {
+            m_eaten = false;
+            m_scared = false;
+            m_dx = 0;
+            m_dy = -1;
+            m_release = 15;
+            return;
+        }
+
+        int stepX = 0;
+        int stepY = 0;
+        if (m_x < 9) stepX = 1;
+        else if (m_x > 9) stepX = -1;
+
+        if (m_y < 9) stepY = 1;
+        else if (m_y > 9) stepY = -1;
+
+        if (stepX != 0) {
+            m_dx = stepX;
+            m_dy = 0;
+            m_x += stepX;
+        } else if (stepY != 0) {
+            m_dx = 0;
+            m_dy = stepY;
+            m_y += stepY;
+        }
+        return;
+    }
 
     if (m_release > 0) {
         --m_release;

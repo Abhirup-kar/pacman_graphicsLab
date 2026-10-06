@@ -32,6 +32,9 @@ public:
     int power() const { return m_power; }
     int tick() const { return m_tick; }
     int fruitTTL() const { return m_fruitTTL; }
+    int fruitX() const { return m_fruitX; }
+    int fruitY() const { return m_fruitY; }
+    double ghostSpeed() const { return qMin(1.0, 0.70 + (m_level - 1) * 0.05); }
     int readyTicks() const { return m_readyTicks; }
     int dyingTicks() const { return m_dyingTicks; }
     int clearTicks() const { return m_clearTicks; }
@@ -47,6 +50,7 @@ private:
     void checkCollisions();
     void die();
     void addPopup(int x, int y, const QString &s);
+    void spawnFruit();
 
     Board m_board;
     Pacman m_pacman;
@@ -66,6 +70,9 @@ private:
     int m_overTicks = 0;
     int m_combo = 0;
     int m_fruitTTL = 0;
+    int m_fruitX = 9;
+    int m_fruitY = 13;
+    double m_ghostSpeedAcc = 0.0;
     bool m_wakaToggle = false;
 
     WavSound m_waka1, m_waka2;

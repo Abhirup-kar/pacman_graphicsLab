@@ -72,13 +72,29 @@ void Renderer::wall(QPainter &p, int x, int y, const QColor &c, int tick, const 
 
 void Renderer::ghostSprite(QPainter &p, const Ghost &g, qreal alpha, int power, int tick, double opacity) {
     if (opacity <= 0.0) return;
+    QPoint o = posOf(g.x(), g.y(), g.px(), g.py(), alpha);
+
+    if (g.isEaten()) {
+        // Floating eyes animation returning to the cage
+        for (int e = 0; e < 2; ++e) {
+            int ex = o.x() + (e ? 5 : 1);
+            int ey = o.y() + 2;
+            p.fillRect(ex, ey, 2, 3, Qt::white);
+            px(p, ex + (g.dx() > 0 ? 1 : 0), ey + (g.dy() > 0 ? 2 : g.dy() < 0 ? 0 : 1), QColor(20, 20, 200));
+        }
+        // Faint sparkle trail behind the returning spirit eyes
+        if ((tick / 2 + g.x() + g.y()) % 2 == 0) {
+            px(p, o.x() + 3, o.y() + 6, QColor(80, 220, 255, 180));
+        }
+        return;
+    }
+
     bool sc = power > 0 && g.isScared();
     QColor c = sc ? ((power < 12 && (tick / 2) % 2) ? QColor(Qt::white) : QColor(33, 33, 255))
                   : g.color();
     if (opacity < 1.0) {
         c.setAlphaF(c.alphaF() * opacity);
     }
-    QPoint o = posOf(g.x(), g.y(), g.px(), g.py(), alpha);
 
     for (int r = 0; r < 8; ++r) {
         const char *row = r < 7 ? Assets::GHOST_BODY[r] : ((tick % 2) ? Assets::GHOST_FEET_A : Assets::GHOST_FEET_B);
@@ -146,10 +162,10 @@ void Renderer::render(QImage &frame, const GameEngine &engine, qreal alpha) {
         }
     }
 
-    // Bonus fruit
+    // Bonus fruit (randomly placed)
     int fruitTTL = engine.fruitTTL();
     if (fruitTTL > 0 && (fruitTTL > 16 || (tick / 2) % 2)) {
-        p.drawImage(9 * Constants::TS, 13 * Constants::TS + Constants::HUDH, m_fruitImg);
+        p.drawImage(engine.fruitX() * Constants::TS, engine.fruitY() * Constants::TS + Constants::HUDH, m_fruitImg);
     }
 
     // Pac-Man
